@@ -18,9 +18,7 @@
         .pagination button { padding: 5px 15px; cursor: pointer; }
         #viewTableSection { display: none; }
         #scoresReportTable td, #scoresReportTable th { border: 1px solid #000 !important; }
-        /* Search Box Style */
         #searchBox { padding: 5px; width: 250px; border: 1px solid #007bff; border-radius: 4px; margin-left: 10px; }
-
         .print-footer { display: none; }
         @media print { 
             .no-print, .pagination, #toggleBtn { display: none !important; } 
@@ -72,10 +70,10 @@
     <input type="file" id="csvFile" accept=".csv"><br>
     
     <label>Max Marks (P1-P4):</label>
-    <input type="number" id="t1" value="20" oninput="updateView()"> 
-    <input type="number" id="t2" value="80" oninput="updateView()"> 
-    <input type="number" id="t3" value="0" oninput="updateView()">
-    <input type="number" id="t4" value="100" oninput="updateView()">
+    <input type="number" id="t1" value="20" oninput="updateHeaders()"> 
+    <input type="number" id="t2" value="80" oninput="updateHeaders()"> 
+    <input type="number" id="t3" value="0" oninput="updateHeaders()">
+    <input type="number" id="t4" value="100" oninput="updateHeaders()">
 
     <div class="gh-controls">
         <button onclick="loadFromGitHub()" style="background:#007bff; color:white; border:none; padding:8px; border-radius:4px; cursor:pointer;">Load Data</button>
@@ -138,6 +136,15 @@
     const pageSize = 20;
     let isViewMode = false;
 
+    function updateHeaders() {
+        document.getElementById('h1').innerText = `P1 / ${document.getElementById('t1').value}`;
+        document.getElementById('h2').innerText = `P2 / ${document.getElementById('t2').value}`;
+        document.getElementById('h3').innerText = `P3 / ${document.getElementById('t3').value}`;
+        document.getElementById('h4').innerText = `P4 / ${document.getElementById('t4').value}`;
+        const key = getStorageKey();
+        if(!isViewMode) renderEntryTable(key);
+    }
+
     function toggleMode() {
         isViewMode = !isViewMode;
         document.getElementById('entrySection').style.display = isViewMode ? 'none' : 'block';
@@ -155,12 +162,9 @@
         const key = getStorageKey();
         
         document.getElementById('dynamicSubHeader').innerText = `FORM ${f} - TERM ${t} - ${y} - ${s}`;
+        updateHeaders();
         
         if (!isViewMode) {
-            document.getElementById('h1').innerText = `CA1 / ${document.getElementById('t1').value}`;
-            document.getElementById('h2').innerText = `CA2 / ${document.getElementById('t2').value}`;
-            document.getElementById('h3').innerText = `CA3 / ${document.getElementById('t3').value}`;
-            document.getElementById('h4').innerText = `CA4 / ${document.getElementById('t4').value}`;
             renderEntryTable(key);
         } else {
             renderViewTable(key);
@@ -188,7 +192,7 @@
                 } else {
                     masterData[key] = [];
                     updateView();
-                    alert("No data or roster found for this class/year. Please upload a CSV.");
+                    alert("No data or roster found for this class/year.");
                 }
             }
         } catch (e) { console.error(e); }
@@ -197,9 +201,19 @@
     function parseCSV(text) {
         const rows = text.trim().split('\n');
         const data = [];
+        
+        // Metadata Check for Max Marks
+        const meta = rows[1] ? rows[1].split(',') : [];
+        if (meta[0] === "MAX_MARKS") {
+            document.getElementById('t1').value = meta[2] || 20;
+            document.getElementById('t2').value = meta[3] || 80;
+            document.getElementById('t3').value = meta[4] || 0;
+            document.getElementById('t4').value = meta[5] || 100;
+        }
+
         for (let i = 1; i < rows.length; i++) {
             const cols = rows[i].split(',');
-            if (cols.length >= 2) {
+            if (cols.length >= 2 && cols[0] !== "MAX_MARKS") {
                 data.push({
                     id: cols[0].trim(), name: cols[1].trim(),
                     p1: cols[2] || "", p2: cols[3] || "",
@@ -225,7 +239,7 @@
                 }
             });
             updateView();
-            alert("Roster uploaded locally. Click 'Save' to sync across year/terms.");
+            alert("Roster uploaded locally.");
         };
         reader.readAsText(file);
     });
@@ -233,11 +247,9 @@
     function renderEntryTable(key) {
         tableBody.innerHTML = '';
         if (!masterData[key]) return;
-        
         const query = document.getElementById('searchBox').value.toLowerCase();
         
         masterData[key].forEach((std, idx) => {
-            // Search Filtering Logic
             if (std.name.toLowerCase().includes(query) || std.id.toLowerCase().includes(query)) {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -258,12 +270,7 @@
         viewBody.innerHTML = '';
         const allData = masterData[key] || [];
         const query = document.getElementById('searchBox').value.toLowerCase();
-        
-        // Filter data based on search
-        const filteredData = allData.filter(std => 
-            std.name.toLowerCase().includes(query) || std.id.toLowerCase().includes(query)
-        );
-
+        const filteredData = allData.filter(std => std.name.toLowerCase().includes(query) || std.id.toLowerCase().includes(query));
         const start = currentPage * pageSize;
         const pageData = filteredData.slice(start, start + pageSize);
         const t = document.getElementById('selectTerm').value;
@@ -297,10 +304,7 @@
     function changePage(dir) {
         const key = getStorageKey();
         const query = document.getElementById('searchBox').value.toLowerCase();
-        const filteredLength = (masterData[key] || []).filter(std => 
-            std.name.toLowerCase().includes(query) || std.id.toLowerCase().includes(query)
-        ).length;
-        
+        const filteredLength = (masterData[key] || []).filter(std => std.name.toLowerCase().includes(query) || std.id.toLowerCase().includes(query)).length;
         const maxPage = Math.ceil(filteredLength / pageSize) - 1;
         currentPage = Math.max(0, Math.min(currentPage + dir, maxPage));
         updateView();
@@ -346,7 +350,14 @@
         const rosterKey = getYearRosterKey();
         const data = masterData[key] || [];
         
+        const m1 = document.getElementById('t1').value;
+        const m2 = document.getElementById('t2').value;
+        const m3 = document.getElementById('t3').value;
+        const m4 = document.getElementById('t4').value;
+
         let csvContent = "ID,Name,P1,P2,P3,P4,Sex\n";
+        csvContent += `MAX_MARKS,TOTALS,${m1},${m2},${m3},${m4},M\n`; // Metadata row
+        
         data.forEach(s => { csvContent += `${s.id},${s.name},${s.p1},${s.p2},${s.p3},${s.p4},${s.sex}\n`; });
         const encoded = btoa(unescape(encodeURIComponent(csvContent)));
 
@@ -361,7 +372,7 @@
                 body: JSON.stringify({ message: `Update ${path}`, content: encoded, sha: sha })
             });
         }
-        alert("Wow! Saved successfully!");
+        alert("Saved successfully!");
     }
 </script>
 </body>
